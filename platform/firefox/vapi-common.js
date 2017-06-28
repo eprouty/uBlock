@@ -1,7 +1,7 @@
 /*******************************************************************************
 
-    uBlock Origin - a browser extension to block requests.
-    Copyright (C) 2014-2017 The uBlock Origin authors
+    µBlock - a browser extension to block requests.
+    Copyright (C) 2014 The µBlock authors
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,18 +16,18 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see {http://www.gnu.org/licenses/}.
 
-    Home: https://github.com/gorhill/uBlock
+    Home: https://github.com/chrisaljoudi/uBlock
 */
 
 /* global sendAsyncMessage */
 
 // For background page or non-background pages
 
-'use strict';
-
 /******************************************************************************/
 
-(function(self) {
+(function() {
+
+'use strict';
 
 /******************************************************************************/
 
@@ -36,18 +36,7 @@ const {Services} = Components.utils.import(
     null
 );
 
-// https://bugs.chromium.org/p/project-zero/issues/detail?id=1225&desc=6#c10
-if ( !self.vAPI || self.vAPI.uBO !== true ) {
-    self.vAPI = { uBO: true };
-}
-
-var vAPI = self.vAPI;
-
-/******************************************************************************/
-
-vAPI.setTimeout = vAPI.setTimeout || function(callback, delay, extra) {
-    return setTimeout(function(a) { callback(a); }, delay, extra);
-};
+self.vAPI = self.vAPI || {};
 
 /******************************************************************************/
 
@@ -79,9 +68,6 @@ vAPI.insertHTML = (function() {
     const parser = Components.classes['@mozilla.org/parserutils;1']
         .getService(Components.interfaces.nsIParserUtils);
 
-    // https://github.com/gorhill/uBlock/issues/845
-    // Apparently dashboard pages execute with `about:blank` principal.
-
     return function(node, html) {
         while ( node.firstChild ) {
             node.removeChild(node.firstChild);
@@ -91,7 +77,7 @@ vAPI.insertHTML = (function() {
             html,
             parser.SanitizerAllowStyle,
             false,
-            Services.io.newURI('about:blank', null, null),
+            Services.io.newURI(document.baseURI, null, null),
             document.documentElement
         ));
     };
@@ -133,19 +119,14 @@ vAPI.closePopup = function() {
 // background page or auxiliary pages.
 // This storage is optional, but it is nice to have, for a more polished user
 // experience.
-
+const branchName = 'extensions.' + location.host + '.';
 vAPI.localStorage = {
-    pbName: '',
-    pb: null,
+    PB: Services.prefs.getBranch(branchName),
     str: Components.classes['@mozilla.org/supports-string;1']
-                   .createInstance(Components.interfaces.nsISupportsString),
-    init: function(pbName) {
-        this.pbName = pbName;
-        this.pb = Services.prefs.getBranch(pbName);
-    },
+        .createInstance(Components.interfaces.nsISupportsString),
     getItem: function(key) {
         try {
-            return this.pb.getComplexValue(
+            return this.PB.getComplexValue(
                 key,
                 Components.interfaces.nsISupportsString
             ).data;
@@ -155,7 +136,7 @@ vAPI.localStorage = {
     },
     setItem: function(key, value) {
         this.str.data = value;
-        this.pb.setComplexValue(
+        this.PB.setComplexValue(
             key,
             Components.interfaces.nsISupportsString,
             this.str
@@ -163,29 +144,27 @@ vAPI.localStorage = {
     },
     getBool: function(key) {
         try {
-            return this.pb.getBoolPref(key);
+            return this.PB.getBoolPref(key);
         } catch (ex) {
             return null;
         }
     },
     setBool: function(key, value) {
-        this.pb.setBoolPref(key, value);
+        this.PB.setBoolPref(key, value);
     },
     setDefaultBool: function(key, defaultValue) {
-        Services.prefs.getDefaultBranch(this.pbName).setBoolPref(key, defaultValue);
+        Services.prefs.getDefaultBranch(branchName).setBoolPref(key, defaultValue);
     },
     removeItem: function(key) {
-        this.pb.clearUserPref(key);
+        this.PB.clearUserPref(key);
     },
     clear: function() {
-        this.pb.deleteBranch('');
+        this.PB.deleteBranch('');
     }
 };
 
-vAPI.localStorage.init('extensions.' + location.host + '.');
-
 /******************************************************************************/
 
-})(this);
+})();
 
 /******************************************************************************/

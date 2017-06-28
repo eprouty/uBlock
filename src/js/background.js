@@ -1,7 +1,7 @@
 /*******************************************************************************
 
-    uBlock Origin - a browser extension to block requests.
-    Copyright (C) 2014-2017 Raymond Hill
+    uBlock - a browser extension to block requests.
+    Copyright (C) 2014 Raymond Hill
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,158 +16,141 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see {http://www.gnu.org/licenses/}.
 
-    Home: https://github.com/gorhill/uBlock
+    Home: https://github.com/chrisaljoudi/uBlock
 */
 
+/* global vAPI */
+/* exported µBlock */
 
-/* global objectAssign */
+/******************************************************************************/
+
+var µBlock = (function() {
 
 'use strict';
 
 /******************************************************************************/
 
-var µBlock = (function() { // jshint ignore:line
+var oneSecond = 1000;
+var oneMinute = 60 * oneSecond;
+var oneHour = 60 * oneMinute;
+// var oneDay = 24 * oneHour;
 
-    var oneSecond = 1000,
-        oneMinute = 60 * oneSecond;
+/******************************************************************************/
 
-    var hiddenSettingsDefault = {
-        assetFetchTimeout: 30,
-        autoUpdateAssetFetchPeriod: 120,
-        autoUpdatePeriod: 7,
-        ignoreRedirectFilters: false,
-        ignoreScriptInjectFilters: false,
-        manualUpdateAssetFetchPeriod: 2000,
-        popupFontSize: 'unset',
-        suspendTabsUntilReady: false,
-        userResourcesLocation: 'unset'
-    };
+var defaultExternalLists = [
+    '! Examples:',
+    '! https://easylist-downloads.adblockplus.org/antiadblockfilters.txt',
+    '! https://easylist-downloads.adblockplus.org/fb_annoyances_full.txt',
+    '! https://easylist-downloads.adblockplus.org/fb_annoyances_sidebar.txt',
+    '! https://easylist-downloads.adblockplus.org/fb_annoyances_newsfeed.txt',
+    '! https://easylist-downloads.adblockplus.org/yt_annoyances_full.txt',
+    '! https://easylist-downloads.adblockplus.org/yt_annoyances_comments.txt',
+    '! https://easylist-downloads.adblockplus.org/yt_annoyances_suggestions.txt',
+    '! https://easylist-downloads.adblockplus.org/yt_annoyances_other.txt'
+].join('\n');
 
-    return {
-        firstInstall: false,
+/******************************************************************************/
 
-        onBeforeStartQueue: [],
-        onStartCompletedQueue: [],
+return {
+    userSettings: {
+        advancedUserEnabled: false,
+        autoUpdate: true,
+        collapseBlocked: true,
+        contextMenuEnabled: true,
+        dynamicFilteringEnabled: false,
+        experimentalEnabled: false,
+        externalLists: defaultExternalLists,
+        firewallPaneMinimized: true,
+        parseAllABPHideFilters: true,
+        requestLogMaxEntries: 1000,
+        showIconBadge: true,
+    },
 
-        userSettings: {
-            advancedUserEnabled: false,
-            alwaysDetachLogger: false,
-            autoUpdate: true,
-            cloudStorageEnabled: false,
-            collapseBlocked: true,
-            colorBlindFriendly: false,
-            contextMenuEnabled: true,
-            dynamicFilteringEnabled: false,
-            externalLists: [],
-            firewallPaneMinimized: true,
-            hyperlinkAuditingDisabled: true,
-            ignoreGenericCosmeticFilters: false,
-            largeMediaSize: 50,
-            parseAllABPHideFilters: true,
-            prefetchingDisabled: true,
-            requestLogMaxEntries: 1000,
-            showIconBadge: true,
-            tooltipsDisabled: false,
-            webrtcIPAddressHidden: false
+    // https://github.com/chrisaljoudi/uBlock/issues/180
+    // Whitelist directives need to be loaded once the PSL is available
+    netWhitelist: {},
+    netWhitelistModifyTime: 0,
+    netWhitelistDefault: [
+        'about-scheme',
+        'behind-the-scene',
+        'chrome-extension-scheme',
+        'chrome-scheme',
+        'loopconversation.about-scheme',
+        'opera-scheme'
+    ].join('\n').trim(),
+    
+    userFiltersPath: "assets/user/filters.txt",
+
+    localSettings: {
+        blockedRequestCount: 0,
+        allowedRequestCount: 0,
+    },
+    localSettingsModifyTime: 0,
+    localSettingsSaveTime: 0,
+
+    // read-only
+    systemSettings: {
+        compiledMagic: 'eopszukpnrct',
+        selfieMagic: 'menhiasrxfed'
+    },
+
+    restoreBackupSettings: {
+        lastRestoreFile: '',
+        lastRestoreTime: 0,
+        lastBackupFile: '',
+        lastBackupTime: 0
+    },
+
+    // EasyList, EasyPrivacy and many others have an 4-day update period,
+    // as per list headers.
+    updateAssetsEvery: 97 * oneHour,
+    projectServerRoot: 'https://raw.githubusercontent.com/chrisaljoudi/uBlock/master/',
+    pslPath: 'assets/thirdparties/publicsuffix.org/list/effective_tld_names.dat',
+
+    // permanent lists
+    permanentLists: {
+        // User
+        'assets/user/filters.txt': {
+            group: 'default'
         },
-
-        hiddenSettingsDefault: hiddenSettingsDefault,
-        hiddenSettings: (function() {
-            var out = objectAssign({}, hiddenSettingsDefault),
-                json = vAPI.localStorage.getItem('hiddenSettings');
-            if ( typeof json === 'string' ) {
-                try {
-                    var o = JSON.parse(json);
-                    if ( o instanceof Object ) {
-                        for ( var k in o ) {
-                            if ( out.hasOwnProperty(k) ) {
-                                out[k] = o[k];
-                            }
-                        }
-                    }
-                }
-                catch(ex) {
-                }
-            }
-            return out;
-        })(),
-
-        // Features detection.
-        privacySettingsSupported: vAPI.browserSettings instanceof Object,
-        cloudStorageSupported: vAPI.cloud instanceof Object,
-
-        // https://github.com/chrisaljoudi/uBlock/issues/180
-        // Whitelist directives need to be loaded once the PSL is available
-        netWhitelist: {},
-        netWhitelistModifyTime: 0,
-        netWhitelistDefault: [
-            'about-scheme',
-            'behind-the-scene',
-            'chrome-extension-scheme',
-            'chrome-scheme',
-            'loopconversation.about-scheme',
-            'moz-extension-scheme',
-            'opera-scheme',
-            'vivaldi-scheme',
-            ''
-        ].join('\n'),
-
-        localSettings: {
-            blockedRequestCount: 0,
-            allowedRequestCount: 0
+        // uBlock
+        'assets/ublock/filters.txt': {
+            title: 'uBlock filters',
+            group: 'default'
         },
-        localSettingsLastModified: 0,
-        localSettingsLastSaved: 0,
+        'assets/ublock/privacy.txt': {
+            title: 'uBlock filters – Privacy',
+            group: 'default'
+        }
+    },
 
-        // read-only
-        systemSettings: {
-            compiledMagic: 'pwvcdyqfkuek',
-            selfieMagic: 'pwvcdyqfkuek'
-        },
+    // current lists
+    remoteBlacklists: {
+    },
 
-        restoreBackupSettings: {
-            lastRestoreFile: '',
-            lastRestoreTime: 0,
-            lastBackupFile: '',
-            lastBackupTime: 0
-        },
+    selfieAfter: 23 * oneMinute,
 
-        // Allows to fully customize uBO's assets, typically set through admin
-        // settings. The content of 'assets.json' will also tell which filter
-        // lists to enable by default when uBO is first installed.
-        assetsBootstrapLocation: 'assets/assets.json',
+    pageStores: {},
 
-        userFiltersPath: 'user-filters',
-        pslAssetKey: 'public_suffix_list.dat',
+    storageQuota: vAPI.storage.QUOTA_BYTES,
+    storageUsed: 0,
 
-        selectedFilterLists: [],
-        availableFilterLists: {},
+    noopFunc: function(){},
 
-        selfieAfter: 17 * oneMinute,
+    apiErrorCount: 0,
+    contextMenuClientX: -1,
+    contextMenuClientY: -1,
 
-        pageStores: {},
-        pageStoresToken: 0,
+    epickerTarget: null,
+    epickerEprom: null,
 
-        storageQuota: vAPI.storage.QUOTA_BYTES,
-        storageUsed: 0,
+    // so that I don't have to care for last comma
+    dummy: 0
+};
 
-        noopFunc: function(){},
-
-        apiErrorCount: 0,
-        mouseX: -1,
-        mouseY: -1,
-        mouseURL: '',
-        epickerTarget: '',
-        epickerZap: false,
-        epickerEprom: null,
-
-        scriptlets: {
-        },
-
-        // so that I don't have to care for last comma
-        dummy: 0
-    };
+/******************************************************************************/
 
 })();
 
 /******************************************************************************/
+

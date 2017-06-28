@@ -1,7 +1,7 @@
 /*******************************************************************************
 
-    uBlock Origin - a browser extension to block requests.
-    Copyright (C) 2014-2016 Raymond Hill
+    µBlock - a browser extension to block requests.
+    Copyright (C) 2014 Raymond Hill
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,10 +16,10 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see {http://www.gnu.org/licenses/}.
 
-    Home: https://github.com/gorhill/uBlock
+    Home: https://github.com/chrisaljoudi/uBlock
 */
 
-/* global uDom, uBlockDashboard */
+/* global vAPI, uDom */
 
 /******************************************************************************/
 
@@ -29,79 +29,44 @@
 
 /******************************************************************************/
 
-var messaging = vAPI.messaging,
-    cachedWhitelist = '';
+var messager = vAPI.messaging.channel('whitelist.js');
 
 /******************************************************************************/
 
-var getTextareaNode = function() {
-    var me = getTextareaNode,
-        node = me.theNode;
-    if ( node === undefined ) {
-        node = me.theNode = uDom.nodeFromSelector('#whitelist textarea');
-    }
-    return node;
-};
+var cachedWhitelist = '';
 
-var setErrorNodeHorizontalOffset = function(px) {
-    var me = setErrorNodeHorizontalOffset,
-        offset = me.theOffset || 0;
-    if ( px === offset ) { return; }
-    var node = me.theNode;
-    if ( node === undefined ) {
-        node = me.theNode = uDom.nodeFromSelector('#whitelist textarea + div');
-    }
-    node.style.right = px + 'px';
-    me.theOffset = px;
-};
+// Could make it more fancy if needed. But speed... It's a compromise.
+var reUnwantedChars = /[\x00-\x09\x0b\x0c\x0e-\x1f!"$'()<>{}|\\^\[\]`~]/;
 
 /******************************************************************************/
 
-var whitelistChanged = (function() {
-    var changedWhitelist, changed, timer;
-
-    var updateUI = function(good) {
-        uDom.nodeFromId('whitelistApply').disabled = changed || !good;
-        uDom.nodeFromId('whitelistRevert').disabled = changed;
-        uDom.nodeFromId('whitelist').classList.toggle('invalid', !good);
-    };
-
-    var validate = function() {
-        timer = undefined;
-        messaging.send(
-            'dashboard',
-            { what: 'validateWhitelistString', raw: changedWhitelist },
-            updateUI
-        );
-    };
-
-    return function() {
-        changedWhitelist = getTextareaNode().value.trim();
-        changed = changedWhitelist === cachedWhitelist;
-        if ( timer !== undefined ) { clearTimeout(timer); }
-        timer = vAPI.setTimeout(validate, 251);
-        var textarea = getTextareaNode();
-        setErrorNodeHorizontalOffset(textarea.offsetWidth - textarea.clientWidth);
-    };
-})();
+var whitelistChanged = function() {
+    var s = uDom('#whitelist').val().trim();
+    var bad = reUnwantedChars.test(s);
+    uDom('#whitelistApply').prop(
+        'disabled',
+        s === cachedWhitelist || bad
+    );
+    uDom('#whitelist').toggleClass('bad', bad);
+};
 
 /******************************************************************************/
 
 var renderWhitelist = function() {
     var onRead = function(whitelist) {
-        cachedWhitelist = whitelist.trim();
-        getTextareaNode().value = cachedWhitelist + '\n';
-        whitelistChanged();
+        cachedWhitelist = whitelist;
+        uDom('#whitelist').val(cachedWhitelist);
     };
-    messaging.send('dashboard', { what: 'getWhitelist' }, onRead);
+    messager.send({ what: 'getWhitelist' }, onRead);
+    whitelistChanged();
 };
 
 /******************************************************************************/
 
 var handleImportFilePicker = function() {
     var fileReaderOnLoadHandler = function() {
-        var textarea = getTextareaNode();
-        textarea.value = [textarea.value.trim(), this.result.trim()].join('\n').trim();
+        var textarea = uDom('#whitelist');
+        textarea.val([textarea.val(), this.result].join('\n').trim());
         whitelistChanged();
     };
     var file = this.files[0];
@@ -130,64 +95,42 @@ var startImportFilePicker = function() {
 /******************************************************************************/
 
 var exportWhitelistToFile = function() {
-    var val = getTextareaNode().value.trim();
-    if ( val === '' ) { return; }
+    var val = uDom('#whitelist').val().trim();
+    if ( val === '' ) {
+        return;
+    }
+    var now = new Date();
     var filename = vAPI.i18n('whitelistExportFilename')
-        .replace('{{datetime}}', uBlockDashboard.dateNowToSensibleString())
+        .replace('{{datetime}}', now.toLocaleString())
         .replace(/ +/g, '_');
     vAPI.download({
-        'url': 'data:text/plain;charset=utf-8,' + encodeURIComponent(val + '\n'),
+        'url': 'data:text/plain;charset=utf-8,' + encodeURIComponent(val),
         'filename': filename
     });
 };
 
 /******************************************************************************/
 
-var applyChanges = function() {
-    cachedWhitelist = getTextareaNode().value.trim();
+var whitelistApplyHandler = function() {
+    cachedWhitelist = uDom('#whitelist').val().trim();
     var request = {
         what: 'setWhitelist',
         whitelist: cachedWhitelist
     };
-    messaging.send('dashboard', request, renderWhitelist);
-};
-
-var revertChanges = function() {
-    getTextareaNode().value = cachedWhitelist + '\n';
-    whitelistChanged();
+    messager.send(request, renderWhitelist);
 };
 
 /******************************************************************************/
 
-var getCloudData = function() {
-    return getTextareaNode().value;
-};
+uDom.onLoad(function() {
+    uDom('#importWhitelistFromFile').on('click', startImportFilePicker);
+    uDom('#importFilePicker').on('change', handleImportFilePicker);
+    uDom('#exportWhitelistToFile').on('click', exportWhitelistToFile);
+    uDom('#whitelist').on('input', whitelistChanged);
+    uDom('#whitelistApply').on('click', whitelistApplyHandler);
 
-var setCloudData = function(data, append) {
-    if ( typeof data !== 'string' ) {
-        return;
-    }
-    var textarea = getTextareaNode();
-    if ( append ) {
-        data = uBlockDashboard.mergeNewLines(textarea.value.trim(), data);
-    }
-    textarea.value = data.trim() + '\n';
-    whitelistChanged();
-};
-
-self.cloud.onPush = getCloudData;
-self.cloud.onPull = setCloudData;
-
-/******************************************************************************/
-
-uDom('#importWhitelistFromFile').on('click', startImportFilePicker);
-uDom('#importFilePicker').on('change', handleImportFilePicker);
-uDom('#exportWhitelistToFile').on('click', exportWhitelistToFile);
-uDom('#whitelist textarea').on('input', whitelistChanged);
-uDom('#whitelistApply').on('click', applyChanges);
-uDom('#whitelistRevert').on('click', revertChanges);
-
-renderWhitelist();
+    renderWhitelist();
+});
 
 /******************************************************************************/
 

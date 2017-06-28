@@ -1,7 +1,7 @@
 /*******************************************************************************
 
-    uBlock Origin - a browser extension to block requests.
-    Copyright (C) 2014-2016 Raymond Hill
+    µBlock - a browser extension to block requests.
+    Copyright (C) 2014 Raymond Hill
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,10 +16,10 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see {http://www.gnu.org/licenses/}.
 
-    Home: https://github.com/gorhill/uBlock
+    Home: https://github.com/chrisaljoudi/uBlock
 */
 
-/* global uDom, uBlockDashboard */
+/* global vAPI, uDom */
 
 /******************************************************************************/
 
@@ -29,44 +29,40 @@
 
 /******************************************************************************/
 
-var messaging = vAPI.messaging;
 var cachedUserFilters = '';
+
+/******************************************************************************/
+
+var messager = vAPI.messaging.channel('1p-filters.js');
 
 /******************************************************************************/
 
 // This is to give a visual hint that the content of user blacklist has changed.
 
-function userFiltersChanged(changed) {
-    if ( typeof changed !== 'boolean' ) {
-        changed = uDom.nodeFromId('userFilters').value.trim() !== cachedUserFilters;
-    }
-    uDom.nodeFromId('userFiltersApply').disabled = !changed;
-    uDom.nodeFromId('userFiltersRevert').disabled = !changed;
+function userFiltersChanged() {
+    uDom('#userFiltersApply').prop(
+        'disabled',
+        uDom('#userFilters').val().trim() === cachedUserFilters
+    );
 }
 
 /******************************************************************************/
 
-function renderUserFilters(first) {
+function renderUserFilters() {
     var onRead = function(details) {
-        if ( details.error ) { return; }
-        var textarea = uDom.nodeFromId('userFilters');
-        cachedUserFilters = details.content.trim();
-        textarea.value = details.content;
-        if ( first ) {
-            textarea.value += '\n';
-            var textlen = textarea.value.length;
-            textarea.setSelectionRange(textlen, textlen);
-            textarea.focus();
+        if ( details.error ) {
+            return;
         }
-        userFiltersChanged(false);
+        cachedUserFilters = details.content.trim();
+        uDom('#userFilters').val(details.content);
     };
-    messaging.send('dashboard', { what: 'readUserFilters' }, onRead);
+    messager.send({ what: 'readUserFilters' }, onRead);
 }
 
 /******************************************************************************/
 
 function allFiltersApplyHandler() {
-    messaging.send('dashboard', { what: 'reloadAllFilters' });
+    messager.send({ what: 'reloadAllFilters' });
     uDom('#userFiltersApply').prop('disabled', true );
 }
 
@@ -76,24 +72,19 @@ var handleImportFilePicker = function() {
     // https://github.com/chrisaljoudi/uBlock/issues/1004
     // Support extraction of filters from ABP backup file
     var abpImporter = function(s) {
-        var reAbpSubscriptionExtractor = /\n\[Subscription\]\n+url=~[^\n]+([\x08-\x7E]*?)(?:\[Subscription\]|$)/ig;
-        var reAbpFilterExtractor = /\[Subscription filters\]([\x08-\x7E]*?)(?:\[Subscription\]|$)/i;
-        var matches = reAbpSubscriptionExtractor.exec(s);
+        var reAbpExtractor = /\n\[Subscription\]\n+url=~[\x08-\x7E]+?\[Subscription filters\]([\x08-\x7E]*?)(?:\[Subscription\]|$)/ig;
+        var matches = reAbpExtractor.exec(s);
         // Not an ABP backup file
         if ( matches === null ) {
             return s;
         }
-        // 
         var out = [];
-        var filterMatch;
         while ( matches !== null ) {
-            if ( matches.length === 2 ) {
-                filterMatch = reAbpFilterExtractor.exec(matches[1].trim());
-                if ( filterMatch !== null && filterMatch.length === 2 ) {
-                    out.push(filterMatch[1].trim().replace(/\\\[/g, '['));
-                }
+            if ( matches.length !== 2 ) {
+                continue;
             }
-            matches = reAbpSubscriptionExtractor.exec(s);
+            out.push(matches[1].trim().replace(/\\\[/g, '['));
+            matches = reAbpExtractor.exec(s);
         }
         return out.join('\n');
     };
@@ -134,75 +125,46 @@ var exportUserFiltersToFile = function() {
     if ( val === '' ) {
         return;
     }
+    var now = new Date();
     var filename = vAPI.i18n('1pExportFilename')
-        .replace('{{datetime}}', uBlockDashboard.dateNowToSensibleString())
+        .replace('{{datetime}}', now.toLocaleString())
         .replace(/ +/g, '_');
     vAPI.download({
-        'url': 'data:text/plain;charset=utf-8,' + encodeURIComponent(val + '\n'),
+        'url': 'data:text/plain;charset=utf-8,' + encodeURIComponent(val),
         'filename': filename
     });
 };
 
 /******************************************************************************/
 
-var applyChanges = function() {
-    var textarea = uDom.nodeFromId('userFilters');
-
+var userFiltersApplyHandler = function() {
     var onWritten = function(details) {
         if ( details.error ) {
             return;
         }
-        textarea.value = details.content;
         cachedUserFilters = details.content.trim();
         userFiltersChanged();
         allFiltersApplyHandler();
-        textarea.focus();
     };
-
     var request = {
         what: 'writeUserFilters',
-        content: textarea.value
+        content: uDom('#userFilters').val()
     };
-    messaging.send('dashboard', request, onWritten);
-};
-
-var revertChanges = function() {
-    uDom.nodeFromId('userFilters').value = cachedUserFilters + '\n';
-    userFiltersChanged();
+    messager.send(request, onWritten);
 };
 
 /******************************************************************************/
 
-var getCloudData = function() {
-    return uDom.nodeFromId('userFilters').value;
-};
+uDom.onLoad(function() {
+    // Handle user interaction
+    uDom('#importUserFiltersFromFile').on('click', startImportFilePicker);
+    uDom('#importFilePicker').on('change', handleImportFilePicker);
+    uDom('#exportUserFiltersToFile').on('click', exportUserFiltersToFile);
+    uDom('#userFilters').on('input', userFiltersChanged);
+    uDom('#userFiltersApply').on('click', userFiltersApplyHandler);
 
-var setCloudData = function(data, append) {
-    if ( typeof data !== 'string' ) {
-        return;
-    }
-    var textarea = uDom.nodeFromId('userFilters');
-    if ( append ) {
-        data = uBlockDashboard.mergeNewLines(textarea.value, data);
-    }
-    textarea.value = data;
-    userFiltersChanged();
-};
-
-self.cloud.onPush = getCloudData;
-self.cloud.onPull = setCloudData;
-
-/******************************************************************************/
-
-// Handle user interaction
-uDom('#importUserFiltersFromFile').on('click', startImportFilePicker);
-uDom('#importFilePicker').on('change', handleImportFilePicker);
-uDom('#exportUserFiltersToFile').on('click', exportUserFiltersToFile);
-uDom('#userFilters').on('input', userFiltersChanged);
-uDom('#userFiltersApply').on('click', applyChanges);
-uDom('#userFiltersRevert').on('click', revertChanges);
-
-renderUserFilters(true);
+    renderUserFilters();
+});
 
 /******************************************************************************/
 

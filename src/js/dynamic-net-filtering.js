@@ -1,7 +1,7 @@
 /*******************************************************************************
 
-    uBlock Origin - a browser extension to block requests.
-    Copyright (C) 2014-2017 Raymond Hill
+    µBlock - a browser extension to black/white list requests.
+    Copyright (C) 2014  Raymond Hill
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,17 +16,17 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see {http://www.gnu.org/licenses/}.
 
-    Home: https://github.com/gorhill/uBlock
+    Home: https://github.com/chrisaljoudi/uBlock
 */
 
-/* global punycode */
+/* global punycode, µBlock */
 /* jshint bitwise: false */
-
-'use strict';
 
 /******************************************************************************/
 
 µBlock.Firewall = (function() {
+
+'use strict';
 
 /******************************************************************************/
 
@@ -89,24 +89,26 @@ var isIPAddress = function(hostname) {
     if ( reIPv4VeryCoarse.test(hostname) ) {
         return true;
     }
-    return hostname.startsWith('[');
+    return hostname.charAt(0) === '[';
 };
+
+/******************************************************************************/
 
 var toBroaderHostname = function(hostname) {
-    var pos = hostname.indexOf('.');
-    if ( pos !== -1 ) {
-        return hostname.slice(pos + 1);
+    if ( hostname === '*' ) {
+        return '';
     }
-    return hostname !== '*' && hostname !== '' ? '*' : '';
+    if ( isIPAddress(hostname) ) {
+        return '*';
+    }
+    var pos = hostname.indexOf('.');
+    if ( pos === -1 ) {
+        return '*';
+    }
+    return hostname.slice(pos + 1);
 };
 
-var toBroaderIPAddress = function(ipaddress) {
-    return ipaddress !== '*' && ipaddress !== '' ? '*' : '';
-};
-
-var selectHostnameBroadener = function(hostname) {
-    return isIPAddress(hostname) ? toBroaderIPAddress : toBroaderHostname;
-};
+Matrix.toBroaderHostname = toBroaderHostname;
 
 /******************************************************************************/
 
@@ -204,22 +206,25 @@ Matrix.prototype.hasSameRules = function(other, srcHostname, desHostnames) {
 
     // Specific types
     ruleKey = '* *';
-    if ( (thisRules[ruleKey] || 0) !== (otherRules[ruleKey] || 0) ) {
+    if ( thisRules[ruleKey] !== otherRules[ruleKey] ) {
         return false;
     }
     ruleKey = srcHostname + ' *';
-    if ( (thisRules[ruleKey] || 0) !== (otherRules[ruleKey] || 0) ) {
+    if ( thisRules[ruleKey] !== otherRules[ruleKey] ) {
         return false;
     }
 
     // Specific destinations
     for ( var desHostname in desHostnames ) {
+        if ( desHostnames.hasOwnProperty(desHostname) === false ) {
+            continue;
+        }
         ruleKey = '* ' + desHostname;
-        if ( (thisRules[ruleKey] || 0) !== (otherRules[ruleKey] || 0) ) {
+        if ( thisRules[ruleKey] !== otherRules[ruleKey] ) {
             return false;
         }
         ruleKey = srcHostname + ' ' + desHostname ;
-        if ( (thisRules[ruleKey] || 0) !== (otherRules[ruleKey] || 0) ) {
+        if ( thisRules[ruleKey] !== otherRules[ruleKey] ) {
             return false;
         }
     }
@@ -259,7 +264,35 @@ Matrix.prototype.unsetCell = function(srcHostname, desHostname, type) {
     return true;
 };
 
+/******************************************************************************/
+
+Matrix.prototype.setCellZ = function(srcHostname, desHostname, type, action) {
+    this.evaluateCellZY(srcHostname, desHostname, type);
+    if ( this.r === action ) {
+        return false;
+    }
+    this.setCell(srcHostname, desHostname, type, 0);
+    this.evaluateCellZY(srcHostname, desHostname, type);
+    if ( this.r === action ) {
+        return true;
+    }
+    this.setCell(srcHostname, desHostname, type, action);
+    return true;
+};
+
+/******************************************************************************/
+
+Matrix.prototype.blockCell = function(srcHostname, desHostname, type) {
+    return this.setCellZ(srcHostname, desHostname, type, 1);
+};
+
 // https://www.youtube.com/watch?v=Csewb_eIStY
+
+/******************************************************************************/
+
+Matrix.prototype.allowCell = function(srcHostname, desHostname, type) {
+    return this.setCellZ(srcHostname, desHostname, type, 2);
+};
 
 /******************************************************************************/
 
@@ -283,19 +316,13 @@ Matrix.prototype.clearRegisters = function() {
 /******************************************************************************/
 
 var is3rdParty = function(srcHostname, desHostname) {
-    // If at least one is party-less, the relation can't be labelled
-    // "3rd-party"
-    if ( desHostname === '*' || srcHostname === '*' || srcHostname === '' ) {
+    if(desHostname === '*' || srcHostname === '*' || srcHostname === '') {
         return false;
     }
 
-    // No domain can very well occurs, for examples:
-    // - localhost
-    // - file-scheme
-    // etc.
-    var srcDomain = domainFromHostname(srcHostname) || srcHostname;
+    var srcDomain = domainFromHostname(srcHostname) || srcHostname; // localhost, etc. don't have domain
 
-    if ( desHostname.endsWith(srcDomain) === false ) {
+    if ( desHostname.slice(0 - srcDomain.length) !== srcDomain ) {
         return true;
     }
     // Do not confuse 'example.com' with 'anotherexample.com'
@@ -307,7 +334,7 @@ var domainFromHostname = µBlock.URI.domainFromHostname;
 
 /******************************************************************************/
 
-Matrix.prototype.evaluateCellZ = function(srcHostname, desHostname, type, broadener) {
+Matrix.prototype.evaluateCellZ = function(srcHostname, desHostname, type) {
     this.type = type;
     var bitOffset = typeBitOffsets[type];
     var s = srcHostname;
@@ -316,14 +343,16 @@ Matrix.prototype.evaluateCellZ = function(srcHostname, desHostname, type, broade
         this.z = s;
         v = this.rules[s + ' ' + desHostname];
         if ( v !== undefined ) {
-            v = v >>> bitOffset & 3;
+            v = v >> bitOffset & 3;
             if ( v !== 0 ) {
                 this.r = v;
                 return v;
             }
         }
-        s = broadener(s);
-        if ( s === '' ) { break; }
+        s = toBroaderHostname(s);
+        if ( s === '' ) {
+            break;
+        }
     }
     // srcHostname is '*' at this point
     this.r = 0;
@@ -333,27 +362,14 @@ Matrix.prototype.evaluateCellZ = function(srcHostname, desHostname, type, broade
 /******************************************************************************/
 
 Matrix.prototype.evaluateCellZY = function(srcHostname, desHostname, type) {
-    // Pathological cases.
-    var d = desHostname;
-    if ( d === '' ) {
-        this.r = 0;
-        return 0;
-    }
-
-    // Prepare broadening handlers -- depends on whether we are dealing with
-    // a hostname or IP address.
-    var broadenSource = selectHostnameBroadener(srcHostname),
-        broadenDestination = selectHostnameBroadener(desHostname);
-
     // Precedence: from most specific to least specific
 
     // Specific-destination, any party, any type
+    var d = desHostname;
     while ( d !== '*' ) {
         this.y = d;
-        if ( this.evaluateCellZ(srcHostname, d, '*', broadenSource) !== 0 ) {
-            return this.r;
-        }
-        d = broadenDestination(d);
+        if ( this.evaluateCellZ(srcHostname, d, '*') !== 0 ) { return this; }
+        d = toBroaderHostname(d);
     }
 
     var thirdParty = is3rdParty(srcHostname, desHostname);
@@ -365,39 +381,28 @@ Matrix.prototype.evaluateCellZY = function(srcHostname, desHostname, type) {
     if ( thirdParty ) {
         // 3rd-party, specific type
         if ( type === 'script' ) {
-            if ( this.evaluateCellZ(srcHostname, '*', '3p-script', broadenSource) !== 0 ) {
-                return this.r;
-            }
+            if ( this.evaluateCellZ(srcHostname, '*', '3p-script') !== 0 ) { return this; }
         } else if ( type === 'sub_frame' ) {
-            if ( this.evaluateCellZ(srcHostname, '*', '3p-frame', broadenSource) !== 0 ) {
-                return this.r;
-            }
+            if ( this.evaluateCellZ(srcHostname, '*', '3p-frame') !== 0 ) { return this; }
         }
         // 3rd-party, any type
-        if ( this.evaluateCellZ(srcHostname, '*', '3p', broadenSource) !== 0 ) {
-            return this.r;
-        }
+        if ( this.evaluateCellZ(srcHostname, '*', '3p') !== 0 ) { return this; }
+
     } else if ( type === 'script' ) {
         // 1st party, specific type
-        if ( this.evaluateCellZ(srcHostname, '*', '1p-script', broadenSource) !== 0 ) {
-            return this.r;
-        }
+        if ( this.evaluateCellZ(srcHostname, '*', '1p-script') !== 0 ) { return this; }
     }
 
     // Any destination, any party, specific type
     if ( supportedDynamicTypes.hasOwnProperty(type) ) {
-        if ( this.evaluateCellZ(srcHostname, '*', type, broadenSource) !== 0 ) {
-            return this.r;
-        }
+        if ( this.evaluateCellZ(srcHostname, '*', type) !== 0 ) { return this; }
     }
 
     // Any destination, any party, any type
-    if ( this.evaluateCellZ(srcHostname, '*', '*', broadenSource) !== 0 ) {
-        return this.r;
-    }
+    if ( this.evaluateCellZ(srcHostname, '*', '*') !== 0 ) { return this; }
 
     this.type = '';
-    return 0;
+    return this;
 };
 
 // http://youtu.be/gSGk1bQ9rcU?t=25m6s
@@ -405,7 +410,7 @@ Matrix.prototype.evaluateCellZY = function(srcHostname, desHostname, type) {
 /******************************************************************************/
 
 Matrix.prototype.mustAllowCellZY = function(srcHostname, desHostname, type) {
-    return this.evaluateCellZY(srcHostname, desHostname, type) === 2;
+    return this.evaluateCellZY(srcHostname, desHostname, type).r === 2;
 };
 
 /******************************************************************************/
@@ -428,41 +433,21 @@ Matrix.prototype.mustAbort = function() {
 
 /******************************************************************************/
 
-Matrix.prototype.lookupRuleData = function(src, des, type) {
-    var r = this.evaluateCellZY(src, des, type);
-    if ( r === 0 ) {
-        return null;
+Matrix.prototype.toFilterString = function() {
+    if ( this.type === '' ) {
+        return '';
     }
-    return {
-        src: this.z,
-        des: this.y,
-        type: this.type,
-        action: r === 1 ? 'block' : (r === 2 ? 'allow' : 'noop')
-    };
-};
-
-/******************************************************************************/
-
-Matrix.prototype.toLogData = function() {
-    if ( this.r === 0  || this.type === '' ) {
-        return;
+    if ( this.r === 1 ) {
+        return 'db:' + this.z + ' ' + this.y + ' ' + this.type + ' block';
     }
-    var logData = {
-        source: 'dynamicHost',
-        result: this.r,
-        raw: this.z + ' ' +
-             this.y + ' ' +
-             this.type + ' ' +
-             this.intToActionMap.get(this.r)
-    };
-    return logData;
+    if ( this.r === 2 ) {
+        return 'da:' + this.z + ' ' + this.y + ' ' + this.type + ' allow';
+    }
+    if ( this.r === 3 ) {
+        return 'dn:' + this.z + ' ' + this.y + ' ' + this.type + ' noop';
+    }
+    return '';
 };
-
-Matrix.prototype.intToActionMap = new Map([
-    [ 1, ' block' ],
-    [ 2, ' allow' ],
-    [ 3, ' noop' ]
-]);
 
 /******************************************************************************/
 
@@ -479,10 +464,9 @@ Matrix.prototype.desHostnameFromRule = function(rule) {
 /******************************************************************************/
 
 Matrix.prototype.toString = function() {
-    var out = [],
-        rule, type, val,
-        srcHostname, desHostname,
-        toUnicode = punycode.toUnicode;
+    var out = [];
+    var rule, type, val;
+    var srcHostname, desHostname;
     for ( rule in this.rules ) {
         if ( this.rules.hasOwnProperty(rule) === false ) {
             continue;
@@ -494,16 +478,12 @@ Matrix.prototype.toString = function() {
                 continue;
             }
             val = this.evaluateCell(srcHostname, desHostname, type);
-            if ( val === 0 ) { continue; }
-            if ( srcHostname.indexOf('xn--') !== -1 ) {
-                srcHostname = toUnicode(srcHostname);
-            }
-            if ( desHostname.indexOf('xn--') !== -1 ) {
-                desHostname = toUnicode(desHostname);
+            if ( val === 0 ) {
+                continue;
             }
             out.push(
-                srcHostname + ' ' +
-                desHostname + ' ' +
+                punycode.toUnicode(srcHostname) + ' ' +
+                punycode.toUnicode(desHostname) + ' ' +
                 type + ' ' +
                 actionToNameMap[val]
             );
@@ -515,28 +495,31 @@ Matrix.prototype.toString = function() {
 /******************************************************************************/
 
 Matrix.prototype.fromString = function(text, append) {
-    var lineIter = new µBlock.LineIterator(text),
-        line, pos, fields,
-        srcHostname, desHostname, type, action,
-        reNotASCII = /[^\x20-\x7F]/,
-        toASCII = punycode.toASCII;
+    var textEnd = text.length;
+    var lineBeg = 0, lineEnd;
+    var line, pos, fields;
+    var srcHostname, desHostname, type, action;
 
     if ( append !== true ) {
         this.reset();
     }
 
-    while ( lineIter.eot() === false ) {
-        line = lineIter.next().trim();
+    while ( lineBeg < textEnd ) {
+        lineEnd = text.indexOf('\n', lineBeg);
+        if ( lineEnd < 0 ) {
+            lineEnd = text.indexOf('\r', lineBeg);
+            if ( lineEnd < 0 ) {
+                lineEnd = textEnd;
+            }
+        }
+        line = text.slice(lineBeg, lineEnd).trim();
+        lineBeg = lineEnd + 1;
+
         pos = line.indexOf('# ');
         if ( pos !== -1 ) {
             line = line.slice(0, pos).trim();
         }
         if ( line === '' ) {
-            continue;
-        }
-
-        // URL net filtering rules
-        if ( line.indexOf('://') !== -1 ) {
             continue;
         }
 
@@ -553,22 +536,8 @@ Matrix.prototype.fromString = function(text, append) {
             continue;
         }
 
-        // Ignore special rules:
-        //   hostname-based switch rules
-        if ( fields[0].endsWith(':') ) {
-            continue;
-        }
-
-        // Performance: avoid punycoding if hostnames are made only of
-        // ASCII characters.
-        srcHostname = fields[0];
-        if ( reNotASCII.test(srcHostname) ) {
-            srcHostname = toASCII(srcHostname);
-        }
-        desHostname = fields[1];
-        if ( reNotASCII.test(desHostname) ) {
-            desHostname = toASCII(desHostname);
-        }
+        srcHostname = punycode.toASCII(fields[0]);
+        desHostname = punycode.toASCII(fields[1]);
 
         // https://github.com/chrisaljoudi/uBlock/issues/1082
         // Discard rules with invalid hostnames
@@ -595,6 +564,51 @@ Matrix.prototype.fromString = function(text, append) {
         }
 
         this.setCell(srcHostname, desHostname, type, action);
+    }
+};
+
+/******************************************************************************/
+
+Matrix.prototype.fromObsoleteSelfie = function(selfie) {
+    if ( selfie === '' ) {
+        return '';
+    }
+    var bin = {};
+    try {
+        bin = JSON.parse(selfie);
+    } catch(e) {
+    }
+    var filters = bin.filters;
+    var bits, val;
+    for ( var hostname in filters ) {
+        if ( filters.hasOwnProperty(hostname) === false ) {
+            continue;
+        }
+        bits = filters[hostname];
+        val = bits & 3;
+        if ( val === 1 ) {
+            this.setCell(hostname, '*', 'inline-script', 1);
+        } else if ( val === 2 ) {
+            this.setCell(hostname, '*', 'inline-script', 3);
+        }
+        val = (bits >> 2) & 3;
+        if ( val === 1 ) {
+            this.setCell(hostname, '*', '1p-script', 1);
+        } else if ( val === 2 ) {
+            this.setCell(hostname, '*', '1p-script', 3);
+        }
+        val = (bits >> 4) & 3;
+        if ( val === 1 ) {
+            this.setCell(hostname, '*', '3p-script', 1);
+        } else if ( val === 2 ) {
+            this.setCell(hostname, '*', '3p-script', 3);
+        }
+        val = (bits >> 8) & 3;
+        if ( val === 1 ) {
+            this.setCell(hostname, '*', '3p-frame', 1);
+        } else if ( val === 2 ) {
+            this.setCell(hostname, '*', '3p-frame', 3);
+        }
     }
 };
 

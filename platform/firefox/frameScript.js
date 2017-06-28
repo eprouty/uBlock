@@ -1,7 +1,7 @@
 /*******************************************************************************
 
-    uBlock Origin - a browser extension to block requests.
-    Copyright (C) 2014-2016 The uBlock Origin authors
+    µBlock - a browser extension to block requests.
+    Copyright (C) 2014 The µBlock authors
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,47 +16,50 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see {http://www.gnu.org/licenses/}.
 
-    Home: https://github.com/gorhill/uBlock
+    Home: https://github.com/chrisaljoudi/uBlock
 */
 
 /******************************************************************************/
 
-// https://developer.mozilla.org/en-US/Firefox/Multiprocess_Firefox/Frame_script_environment
+var locationChangeListener; // Keep alive while frameScript is alive
 
-(function(context) {
-    'use strict';
+(function() {
 
-    if ( !context.docShell ) {
+'use strict';
+
+/******************************************************************************/
+
+let {contentObserver, LocationChangeListener} = Components.utils.import(
+    Components.stack.filename.replace('Script', 'Module'),
+    null
+);
+
+let injectContentScripts = function(win) {
+    if ( !win || !win.document ) {
         return;
     }
 
-    let webProgress = context.docShell
-                      .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                      .getInterface(Components.interfaces.nsIWebProgress);
-    if ( !webProgress ) {
-        return;
+    contentObserver.observe(win.document);
+
+    if ( win.frames && win.frames.length ) {
+        let i = win.frames.length;
+        while ( i-- ) {
+            injectContentScripts(win.frames[i]);
+        }
     }
+};
 
-    // https://github.com/gorhill/uBlock/issues/1514
-    // Fix?
-    let domWindow = webProgress.DOMWindow;
-    if ( domWindow !== domWindow.top ) {
-        return;
-    }
+let onLoadCompleted = function() {
+    removeMessageListener('ublock-load-completed', onLoadCompleted);
+    injectContentScripts(content);
+};
 
-    let {LocationChangeListener} = Components.utils.import(
-        Components.stack.filename.replace('Script', 'Module'),
-        null
-    );
+addMessageListener('ublock-load-completed', onLoadCompleted);
 
-    // https://github.com/gorhill/uBlock/issues/1444
-    // Apparently, on older versions of Firefox (31 and less), the same context
-    // is used for all frame scripts, hence we must use a unique variable name
-    // to ensure no collision.
-    context.ublock0LocationChangeListener = new LocationChangeListener(
-        context.docShell,
-        webProgress
-    );
-})(this);
+locationChangeListener = new LocationChangeListener(docShell);
+
+/******************************************************************************/
+
+})();
 
 /******************************************************************************/

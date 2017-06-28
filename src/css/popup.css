@@ -1,36 +1,27 @@
 body {
-    background-color: white;
+    background-color: #fafafa;
+    color: #333;
     border: 0;
-    float: left;
+    font: 13px Helvetica Neue, Helvetica, sans-serif;
     margin: 0;
-    opacity: 1;
-    overflow: hidden;
     padding: 0;
+    overflow: hidden;
     white-space: nowrap;
+    display: inline-block;
     }
-body.fullsize {
-    overflow: auto;
-    }
-body.mobile {
-    overflow-y: auto;
-    }
-/**
- https://github.com/gorhill/uBlock/issues/83
- .portrait = portrait mode = width is constrained = optimize layout accordingly.
- */
-body.portrait {
-    width: 100%;
-    }
-
 h2 {
     background-color: #eee;
     border: 0;
+    border-top: 1px solid #ccc;
     color: #666;
-    cursor: pointer;
-    font-size: 100%;
+    font-size: 14px;
     font-weight: normal;
-    padding: 0.2em;
+    margin:  10px 0 5px 0;
+    padding: 5px 2px 4px 2px;
     text-align: center;
+    }
+h2:nth-of-type(1) {
+    margin-top: 0;
     }
 a {
     color: inherit;
@@ -39,21 +30,34 @@ a {
 :focus {
     outline: 0;
     }
-#appinfo {
-    background-color: #444;
-    border: 0;
-    color: #bbb;
+#gotoPrefs {
     display: block;
-    font-size: 85%;
-    line-height: 1.2;
     margin: 0;
-    padding: calc(0.1em + 1px) 0;
-    position: relative;
+    border: 0;
+    padding: 4px;
+    padding-top: 5px;
+    color: #eee;
+    background-color: #444;
     text-align: center;
+    cursor: pointer;
+    }
+#appname {
+    margin-left: 3px;
+    font-weight: bold;
     }
 #version {
-    font-size: 90%;
-    font-weight: normal;
+    font-size: 75%;
+    opacity: 0.8;
+    margin-left: 5px;
+    }
+html {
+    font-size: 0;
+    }
+html, body, #panes {
+    text-align: right;
+    }
+#panes {
+    white-space: nowrap;
     }
 body[dir="ltr"] #panes {
     direction: rtl;
@@ -61,18 +65,10 @@ body[dir="ltr"] #panes {
 body[dir="rtl"] #panes {
     direction: ltr;
     }
-body, #panes {
-    text-align: right; /* this helps the popup render better at "intermediate" widths */
-    }
-
 #panes > div {
     display: inline-block;
     position: relative;
     vertical-align: top;
-    }
-body.portrait #panes > div {
-    display: block;
-    width: 100%;
     }
 body[dir="ltr"] #panes > div {
     direction: ltr;
@@ -80,200 +76,167 @@ body[dir="ltr"] #panes > div {
 body[dir="rtl"] #panes > div {
     direction: rtl;
     }
-#panes > div:nth-of-type(2) {
-    font-family: "Noto Sans", sans-serif;
+#panes > #dfPane {
     overflow-y: auto;
     overflow-x: hidden;
-    width: 24em;
+    width: 320px;
+    border-right: 1px solid #444;
     }
-/**
- Scroll bar to the left.
- */
-body[dir="ltr"] #panes > div:nth-of-type(2) {
-    direction: rtl;
+body[dir="ltr"] #panes > #dfPane {
+    direction: rtl; /* scroll bar to the left */
     margin-right: 1px;
     }
-/**
- Scroll bar to the right.
- Firefox bug: when popup is rendered inside hamburger menu panel, Firefox is
-              unable to render the scroll bar to the left.
-              Maybe <https://bugzilla.mozilla.org/show_bug.cgi?id=1139306>?
- */
-body[dir="rtl"] #panes > div:nth-of-type(2),
-body.portrait[dir="ltr"] #panes > div:nth-of-type(2) {
-    direction: ltr;
+body[dir="rtl"] #panes > #dfPane {
+    direction: ltr; /* scroll bar to the right */
     margin-left: 1px;
     }
-#panes:not(.dfEnabled) > div:nth-of-type(2) {
+#panes:not(.dfEnabled) > #dfPane {
     display: none;
     }
-#panes > div:first-of-type {
-    min-width: 11em;
-    padding: 0;
+#panes > #switchPane {
+    box-sizing: border-box;
+    min-width: 150px;
     }
 p {
     text-align: center;
     white-space: nowrap;
     }
-.fa {
-    font-size: 120%;
-    }
 #switch {
     margin: 8px 0;
+    font-size:0;
     }
-#switch .fa {
-    color: #0046ff;
+#switch .icon {
+    color: dodgerblue;
     cursor: pointer;
-    font-size: 700%;
-    margin: 0;
+    font-size: 96px;
     }
-#switch .fa:hover {
-    opacity: 0.9;
+#switch .icon:hover {
+    opacity: 0.8;
     }
-body.off #switch .fa {
+body.off #switch .icon {
     color: #ccc;
     }
-#basicTools {
-    margin: 0.8em 0 0.4em 0;
+#switch-hint {
+    color: #888;
+    font-size: 11px;
     }
-.tool:first-child {
-    margin-left: 0;
+#page-blocked {
+    font-size: 20px;
+    }
+.statName {
+    color: #666;
+    margin: 0;
+    margin-top: 10px;
+    text-align: center;
+    }
+.statValue {
+    font-size: 14px;
+    margin: 4px 0;
+    text-align: center;
     }
 .tool {
     color: #aaa;
     cursor: pointer;
-    visibility: hidden;
-    margin-left: 0.4em;
-    min-width: 1em;
-    padding: 0 0.2em;
-    unicode-bidi: embed;
+    font-size: 14px;
     }
-.tool.enabled {
-    visibility: visible;
+.tool:not(.enabled) {
+    display: none;
     }
-.tool.enabled:hover {
-    color: #444;
-    }
-#page-blocked {
-    font-size: 1.25em;
-    }
-.statName {
-    color: #888;
-    font-size: 85%;
-    margin: 0.8em 0.2em 0.4em 0.2em;
-    text-align: center;
-    }
-.statValue {
-    margin: 0;
-    text-align: center;
-    }
-#extraTools {
-    background-color: #eee;
-    border: 0;
-    color: #aaa;
-    margin: 0.8em 0 0 0;
-    padding: 4px 0;
-    text-align: center;
-    }
-#extraTools > span {
-    cursor: pointer;
-    font-size: 1.2em;
-    margin: 0 0.4em;
-    position: relative;
-    }
-#extraTools > span > span.badge {
-    color: #222;
-    bottom: -1px;
-    font: x-small sans-serif;
-    position: absolute;
-    }
-body[dir="ltr"] #extraTools > span > span.badge {
-    left: 100%;
-    }
-body[dir="rtl"] #extraTools > span > span.badge {
-    right: 100%;
-    }
-#extraTools > span.on > span:last-of-type {
-    color: #e00;
-    font-size: 1.1em;
-    left: 0;
-    position: absolute;
-    text-align: center;
-    top: 0;
-    width: 100%;
-    }
-#extraTools > span.on > span:last-of-type:after {
-    content: '\2715';
-    }
-#extraTools > span:hover {
+.tool:hover {
     color: #444;
     }
 
+body.advancedUser h2 {
+    cursor: pointer;
+    }
+body.advancedUser h2:before {
+    color: #aaa;
+    content: '+ ';
+    }
+body.advancedUser #panes.dfEnabled h2:before {
+    content: '\2212  ';
+    }
+
 #refresh {
-    background-color: #ffe;
-    border: 1px solid #ddc;
+    background-color: #444;
     border-radius: 4px;
-    color: #888;
+    color: #dedede;
+    opacity: 0.7;
     cursor: pointer;
     display: none;
-    font-size: 3.5em;
-    left: 4px;
-    line-height: 1;
-    padding: 4px 8px;
+    height: 35px;
+    font-size: 35px;
+    padding: 8px;
     position: absolute;
     right: 4px;
+    left: 4px;
+    bottom: 4px;
     text-align: center;
     }
 body.dirty #refresh {
     display: block;
     }
 body.dirty #refresh:hover {
-    color: black;
-    }
-
-#tooltip {
-    background-color: #ffffee;
-    border: 1px solid gray;
-    border-radius: 3px;
-    box-shadow: 1px 1px 3px gray;
-    box-sizing: border-box;
-    color: black;
-    cursor: pointer;
-    direction: ltr;
-    font: 12px sans-serif;
-    left: 5%;
-    line-height: 130%;
-    margin: 0.5em 0;
-    opacity: 0;
-    padding: 4px 6px;
-    pointer-events: none;
-    position: absolute;
-    text-align: center;
-    visibility: hidden;
-    white-space: pre-line;
-    width: 90%;
-    z-index: 100;
-    }
-body[dir="rtl"] #tooltip {
-    direction: rtl;
-    }
-#tooltip.show {
-    transition: opacity 0.15s 0.5s;
-    -webkit-transition: opacity 0.15s 0.5s;
-    visibility: visible;
     opacity: 1;
     }
 
 #firewallContainer {
     border: 0;
-    font-size: 85%;
+    font-size: 12px;
     margin: 0;
     padding: 0;
+    padding-top: 22px;
     text-align: right;
+    }
+#scopeIcons {
+    display: none;
+    cursor: default;
+    position: fixed;
+    z-index: 1;
+    border: 0;
+    direction: ltr;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+    opacity: 0.9;
+    background: white;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    }
+#panes.dfEnabled #scopeIcons {
+    display: block;
+    }
+#scopeIcons > span {
+    background-color: transparent;
+    border: none;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    color: black;
+    display: inline-block;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    overflow: hidden;
+    position: relative;
+    vertical-align: middle;
+    }
+#scopeIcons > span:nth-of-type(1) {
+    width: 70%;
+    }
+#scopeIcons > span:nth-of-type(2) {
+    font-size: 80%;
+    }
+#scopeIcons > span:nth-of-type(3) {
+    font-size: 110%;
+    }
+#scopeIcons > span:nth-of-type(2),
+#scopeIcons > span:nth-of-type(3) {
+    width: 15%;
     }
 #firewallContainer > div {
     background-color: #e6e6e6;
     border: 0;
+    border-bottom: 1px solid white;
     direction: ltr;
     margin: 0;
     padding: 0;
@@ -281,122 +244,73 @@ body[dir="rtl"] #tooltip {
 #firewallContainer > div:hover {
     background-color: #f0f0f0;
     }
-#firewallContainer > div:first-child ~ div:not([class]) {
-    display: none;
-    }
 #firewallContainer.minimized > div.isSubDomain {
     display: none;
     }
 #firewallContainer > div > span {
     background-color: transparent;
     border: none;
-    border-bottom: 1px solid white;
-    box-sizing: border-box;
     -moz-box-sizing: border-box;
+    box-sizing: border-box;
     color: #000;
     display: inline-block;
-    height: 1.9em;
-    line-height: 1.9;
+    height: 22px;
+    line-height: 22px;
     overflow: hidden;
     position: relative;
-    vertical-align: top;
+    vertical-align: middle;
     }
-#firewallContainer > div:first-of-type > span:first-of-type {
+#firewallContainer > div:nth-of-type(1) > span {
+    height: 18px;
+    line-height: 20px;
+    }
+#firewallContainer > div:nth-of-type(1) > span:nth-of-type(1) {
     cursor: pointer;
     }
-#firewallContainer > div > span:first-of-type {
+#firewallContainer > div > span:nth-of-type(1) {
     padding-right: 2px;
     position: relative;
     text-overflow: ellipsis;
-    width: calc(100% - 4em);
+    width: 70%;
     }
-#firewallContainer > div.isDomain > span.isIDN:first-of-type > sup:before {
-    color: #666;
-    content: '\0416\2002';
-    font-size: 80%;
-    font-weight: normal;
-    }
-#firewallContainer > div > span:nth-of-type(2) {
-    display: none;
-    }
-#firewallContainer > div > span:first-of-type ~ span {
-    border-left: 1px solid white;
-    width: 4em;
-    }
+#firewallContainer > div > span:nth-of-type(2),
 #firewallContainer > div > span:nth-of-type(3),
 #firewallContainer > div > span:nth-of-type(4) {
-    color: #444;
+    border-left: 1px solid white;
+    cursor: pointer;
+    width: 15%;
+    }
+#firewallContainer > div > span:nth-of-type(2),
+#firewallContainer > div.isDomain > span:nth-of-type(3),
+#firewallContainer > div.isSubDomain > span:nth-of-type(3) {
     text-align: center;
+    color: #444;
     }
-#firewallContainer > div > span:nth-of-type(4) {
-    display: none;
-    }
-#firewallContainer > div.isDomain > span:first-of-type {
+#firewallContainer > div.isDomain > span:nth-of-type(1) {
     font-weight: bold;
     }
-#firewallContainer > div:first-of-type > span:first-of-type:before {
+#firewallContainer > div:nth-of-type(1) > span:nth-of-type(1):before {
     color: #aaa;
     content: '\2012';
     padding-right: 0.25em;
     }
-#firewallContainer.minimized > div:first-of-type > span:first-of-type:before {
+#firewallContainer.minimized > div:nth-of-type(1) > span:nth-of-type(1):before {
     content: '+';
     }
-#firewallContainer.minimized > div.isDomain > span:nth-of-type(3) {
+#firewallContainer > div.isDomain > span:nth-of-type(3),
+#firewallContainer > div.isSubDomain > span:nth-of-type(3) {
     display: none;
     }
-#firewallContainer.minimized > div.isDomain > span:nth-of-type(4) {
+#firewallContainer.minimized > div.isDomain > span:nth-of-type(2) {
+    display: none;
+    }
+#firewallContainer.minimized > div.isDomain > span:nth-of-type(3) {
     display: inline-block;
     }
-#firewallContainer > div > span[data-acount]:before,
-#firewallContainer > div > span[data-bcount]:after {
-    position: absolute;
-    }
-#firewallContainer > div > span[data-acount]:before {
-    left: 0.1em;
-    }
-#firewallContainer > div > span[data-acount="1"]:before {
-    content: '+';
-    }
-#firewallContainer > div > span[data-acount="2"]:before {
-    content: '++';
-    }
-#firewallContainer > div > span[data-acount="3"]:before {
-    content: '+++';
-    }
-#firewallContainer > div > span[data-bcount]:after {
-    right: 0.1em;
-    }
-#firewallContainer > div > span[data-bcount="1"]:after {
-    content: '\2212';
-    }
-#firewallContainer > div > span[data-bcount="2"]:after {
-    content: '\2212\2212';
-    }
-#firewallContainer > div > span[data-bcount="3"]:after {
-    content: '\2212\2212\2212';
-    }
-
-body.advancedUser #firewallContainer > div > span:first-of-type {
-    width: calc(100% - 8em);
-    }
-body.advancedUser #firewallContainer > div > span:nth-of-type(2) {
-    display: inline-block;
-    }
-body.advancedUser #firewallContainer > div:first-child ~ div:not([class]) {
-    display: block;
-    }
-body.advancedUser #firewallContainer > div > span:first-of-type ~ span {
-    cursor: pointer;
-    }
-
-/**
- Small coloured label at the left of a row
- */
-#firewallContainer > div.allowed > span:first-of-type:before,
-#firewallContainer > div.blocked > span:first-of-type:before,
-#firewallContainer.minimized > div.isDomain.totalAllowed > span:first-of-type:before,
-#firewallContainer.minimized > div.isDomain.totalBlocked > span:first-of-type:before {
+#firewallContainer > div.allowed > span:nth-of-type(1):before,
+#firewallContainer > div.blocked > span:nth-of-type(1):before,
+#firewallContainer.minimized > div.isDomain.totalAllowed > span:nth-of-type(1):before,
+#firewallContainer.minimized > div.isDomain.totalBlocked > span:nth-of-type(1):before {
     box-sizing: border-box;
     content: '';
     display: inline-block;
@@ -406,65 +320,37 @@ body.advancedUser #firewallContainer > div > span:first-of-type ~ span {
     position: absolute;
     width: 7px;
     }
-/**
- Source for color-blind color scheme from https://github.com/WyohKnott:
- https://github.com/chrisaljoudi/uBlock/issues/467#issuecomment-95177219
- */
-#firewallContainer > div.allowed > span:first-of-type:before,
-#firewallContainer.minimized > div.isDomain.totalAllowed > span:first-of-type:before {
+#firewallContainer > div.allowed > span:nth-of-type(1):before,
+#firewallContainer.minimized > div.isDomain.totalAllowed > span:nth-of-type(1):before {
     background-color: rgb(0, 160, 0);
     }
-#firewallContainer.colorBlind > div.allowed > span:first-of-type:before,
-#firewallContainer.colorBlind.minimized > div.isDomain.totalAllowed > span:first-of-type:before {
-    background-color: rgb(255, 194, 57);
-    }
-#firewallContainer > div.blocked > span:first-of-type:before,
-#firewallContainer.minimized > div.isDomain.totalBlocked > span:first-of-type:before {
+#firewallContainer > div.blocked > span:nth-of-type(1):before,
+#firewallContainer.minimized > div.isDomain.totalBlocked > span:nth-of-type(1):before {
     background-color: rgb(192, 0, 0);
     }
-#firewallContainer.colorBlind > div.blocked > span:first-of-type:before,
-#firewallContainer.colorBlind.minimized > div.isDomain.totalBlocked > span:first-of-type:before {
-    background-color: rgb(0, 19, 110);
-    }
-#firewallContainer > div.allowed.blocked > span:first-of-type:before,
-#firewallContainer.minimized > div.isDomain.totalAllowed.totalBlocked > span:first-of-type:before {
+#firewallContainer > div.allowed.blocked > span:nth-of-type(1):before,
+#firewallContainer.minimized > div.isDomain.totalAllowed.totalBlocked > span:nth-of-type(1):before {
     background-color: rgb(192, 160, 0);
     }
-/* Rule cells */
-body.advancedUser #firewallContainer > div > span.allowRule {
+#firewallContainer > div > span.aRule {
     background-color: rgba(0, 160, 0, 0.3);
     }
-body.advancedUser #firewallContainer.colorBlind > div > span.allowRule {
-    background-color: rgba(255, 194, 57, 0.4);
-    }
-body.advancedUser #firewallContainer > div > span.blockRule {
+#firewallContainer > div > span.bRule {
     background-color: rgba(192, 0, 0, 0.3);
     }
-body.advancedUser #firewallContainer.colorBlind > div > span.blockRule {
-    background-color: rgba(0, 19, 110, 0.4);
+#firewallContainer > div > span.nRule {
+    background-color: rgba(96, 96, 96, 0.3);
     }
-body.advancedUser #firewallContainer > div > span.noopRule {
-    background-color: rgba(108, 108, 108, 0.3);
+#firewallContainer > div > span.ownRule {
+    color: white !important; /* previous definition is slightly more specific */
     }
-body.advancedUser #firewallContainer.colorBlind > div > span.noopRule {
-    background-color: rgba(96, 96, 96, 0.4);
-    }
-body.advancedUser #firewallContainer > div > span.ownRule {
-    color: white;
-    }
-body.advancedUser #firewallContainer > div > span.allowRule.ownRule {
+#firewallContainer > div > span.aRule.ownRule {
     background-color: rgba(0, 160, 0, 1);
     }
-body.advancedUser #firewallContainer.colorBlind > div > span.allowRule.ownRule {
-    background-color: rgba(255, 194, 57, 1);
-    }
-body.advancedUser #firewallContainer > div > span.blockRule.ownRule {
+#firewallContainer > div > span.bRule.ownRule {
     background-color: rgba(192, 0, 0, 1);
     }
-body.advancedUser #firewallContainer.colorBlind > div > span.blockRule.ownRule {
-    background-color: rgba(0, 19, 110, 1);
-    }
-body.advancedUser #firewallContainer > div > span.noopRule.ownRule {
+#firewallContainer > div > span.nRule.ownRule {
     background-color: rgba(108, 108, 108, 1);
     }
 
@@ -472,32 +358,20 @@ body.advancedUser #firewallContainer > div > span.noopRule.ownRule {
     bottom: 0;
     left: 0;
     position: absolute;
+    right: 0;
     top: 0;
-    width: 4em;
-    z-index: 1;
     }
 #actionSelector > span {
     display: inline-block;
-    height: 100%;
+    height: 22px;
     opacity: 0.2;
-    }
-#actionSelector > span:first-of-type {
-    width: 33%;
-    }
-#actionSelector > span:nth-of-type(2) {
-    width: 33.5%;
-    }
-#actionSelector > span:nth-of-type(3) {
-    width: 33.5%;
+    width: 33.33%;
     }
 #actionSelector > span:hover {
     opacity: 0.75;
     }
-#actionSelector > span:first-of-type {
+#actionSelector > span:nth-of-type(1) {
     background-color: rgb(0, 160, 0);
-    }
-#actionSelector.colorBlind > span:first-of-type {
-    background-color: rgb(255, 194, 57);
     }
 #actionSelector > span:nth-of-type(2) {
     background-color: rgb(108, 108, 108);
@@ -505,37 +379,35 @@ body.advancedUser #firewallContainer > div > span.noopRule.ownRule {
 #actionSelector > span:nth-of-type(3) {
     background-color: rgb(192, 0, 0);
     }
-#actionSelector.colorBlind > span:nth-of-type(3) {
-    background-color: rgb(0, 19, 110);
+#firewallContainer span.aRule #actionSelector > span:nth-of-type(1),
+#firewallContainer span.nRule #actionSelector > span:nth-of-type(2),
+#firewallContainer span.bRule #actionSelector > span:nth-of-type(3) {
+    visibility: hidden;
     }
 
-#rulesetTools {
-    background-color: transparent;
-    border: 0;
-    color: #888;
+#saveflushButtonGroup {
     display: none;
-    left: 4px;
-    padding: 0;
     position: fixed;
-    top: 4px;
-    }
-#rulesetTools > span {
-    background-color: #ffe;
-    border: 1px solid #ddc;
-    border-radius: 4px;
-    cursor: pointer;
+    left: 4px;
+    z-index: 10;
+}
+#saveRules,
+#flushRules {
     display: inline-block;
-    font-size: 1.8em;
-    line-height: 1.0;
-    margin: 0;
-    margin-right: 0.1em;
-    padding: 0.2em 0.4em;
+    opacity: 0.7;
+    background-color: #444;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    font-size: 30px;
+    height: 30px;
+    padding: 8px;
     text-align: center;
-    width: 1em;
     }
-#firewallContainer.dirty ~ #rulesetTools {
+#firewallContainer.dirty ~ #saveflushButtonGroup {
     display: block;
     }
-#firewallContainer.dirty ~ #rulesetTools > span:hover {
-    color: black;
+#saveRules:hover,
+#flushRules:hover {
+    opacity: 1;
     }

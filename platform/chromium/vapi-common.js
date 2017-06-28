@@ -1,7 +1,7 @@
 /*******************************************************************************
 
-    uBlock Origin - a browser extension to block requests.
-    Copyright (C) 2014-2017 The uBlock Origin authors
+    µBlock - a browser extension to block requests.
+    Copyright (C) 2014 The µBlock authors
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,29 +16,24 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see {http://www.gnu.org/licenses/}.
 
-    Home: https://github.com/gorhill/uBlock
+    Home: https://github.com/chrisaljoudi/uBlock
 */
 
 // For background page or non-background pages
 
+/* global self */
+
+/******************************************************************************/
+/******************************************************************************/
+
+(function() {
+
 'use strict';
 
-/******************************************************************************/
-/******************************************************************************/
+self.vAPI = self.vAPI || {};
 
-(function(self) {
-
-// https://bugs.chromium.org/p/project-zero/issues/detail?id=1225&desc=6#c10
-if ( !self.vAPI || self.vAPI.uBO !== true ) {
-    self.vAPI = { uBO: true };
-}
-
-var vAPI = self.vAPI;
 var chrome = self.chrome;
-
-/******************************************************************************/
-
-vAPI.setTimeout = vAPI.setTimeout || self.setTimeout.bind(self);
+var vAPI = self.vAPI;
 
 /******************************************************************************/
 
@@ -61,7 +56,6 @@ vAPI.download = function(details) {
     var a = document.createElement('a');
     a.href = details.url;
     a.setAttribute('download', details.filename || '');
-    a.setAttribute('type', 'text/plain');
     a.dispatchEvent(new MouseEvent('click'));
 };
 
@@ -94,14 +88,10 @@ vAPI.closePopup = function() {
 // This storage is optional, but it is nice to have, for a more polished user
 // experience.
 
-// This can throw in some contexts (like in devtool).
-try {
-    vAPI.localStorage = window.localStorage;
-} catch (ex) {
-}
+vAPI.localStorage = window.localStorage;
 
 /******************************************************************************/
 
-})(this);
+})();
 
 /******************************************************************************/
